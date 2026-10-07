@@ -53,7 +53,6 @@ pub struct UiState {
     pub recent: Vec<String>,
     pub dark: bool,
     pub nav_tab: String,
-    pub show_discord: bool,
 }
 
 impl Default for UiState {
@@ -66,7 +65,6 @@ impl Default for UiState {
             recent: Vec::new(),
             dark: false,
             nav_tab: "headings".into(),
-            show_discord: true,
         }
     }
 }
@@ -236,10 +234,6 @@ impl WordApp {
             }
             "ui.openFileDialog" => {
                 self.open_dialog();
-                json!({})
-            }
-            "ui.discord" => {
-                self.canvas.open_url = Some("https://discord.gg/artcraft".into());
                 json!({})
             }
             _ => return None,
