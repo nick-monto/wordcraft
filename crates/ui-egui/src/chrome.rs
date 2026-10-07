@@ -78,7 +78,9 @@ pub fn title_bar(app: &mut WordApp, ui: &mut Ui) {
                     ui.painter().circle_filled(r.center(), 12.0, t.accent);
                     let initials: String = app.session.author.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect();
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, initials, semibold(10.5), egui::Color32::WHITE);
-                    resp.on_hover_text(format!("{} — set your name in File › Options", app.session.author));
+                    if resp.on_hover_text(format!("{} — set your name in File › Options", app.session.author)).clicked() {
+                        let _ = app.run("file.options", json!({}));
+                    }
                     ui.add_space(8.0);
                     // Search ("Tell me").
                     let (r, resp) = ui.allocate_exact_size(vec2(260.0, 26.0), Sense::click());
