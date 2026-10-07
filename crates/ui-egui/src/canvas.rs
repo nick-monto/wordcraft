@@ -761,6 +761,10 @@ fn context_menu(app: &mut WordApp, ui: &mut Ui) {
     }
     item(ui, app, "Paste", "edit.paste", json!({}));
     ui.separator();
+    // A right-click on a typeset equation leaves the caret on it, so offer to edit its source.
+    if app.session.run("equation.source", &json!({})).is_ok() {
+        item(ui, app, "Edit Equation", "ui.dialog", json!({"name": "equation"}));
+    }
     if let Some(syn) = app.canvas.context_synonyms.clone().and_then(|v| v.as_array().cloned()).filter(|a| !a.is_empty()) {
         ui.menu_button("Synonyms", |ui| {
             for w in syn.iter().filter_map(|x| x.as_str()) {

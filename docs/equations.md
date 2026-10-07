@@ -24,8 +24,11 @@ The pipeline is:
 
 The Insert › Symbols **Equation** button opens the equation dialog: a LaTeX field, a *Display
 equation (own line)* checkbox, a live preview, and Insert/Replace. When the caret is on an
-equation the dialog loads its source and replaces it. Programmatic callers never open dialogs —
-they call `insert.equation` directly.
+equation the dialog loads its source and the button reads Replace, so editing one is the same
+dialog: right-click the typeset equation and choose **Edit Equation**, or open the dialog with the
+caret on it. (`Alt+=` runs `insert.equation` itself — it inserts a new equation from the starter
+source, it does not open the dialog.) Programmatic callers never open dialogs — they read the
+source with `equation.source` and write it back with `insert.equation`.
 
 ## Supported LaTeX
 

@@ -109,7 +109,8 @@ the icon art).
 ## Recently landed
 - LaTeX equations: a LaTeX/linear parser and a 2D typesetter (fractions, radicals, scripts, big
   operators with limits, stretchy delimiters, accents, matrices), an equation dialog with a live
-  preview, structured OMML round-trip, and `$…$` in Markdown/HTML export. `docs/equations.md`.
+  preview, structured OMML round-trip, and `$…$` in Markdown/HTML export. Right-clicking a typeset
+  equation reopens the dialog on its source. `docs/equations.md`.
 - The Discord community button is gone from the title bar, the Help tab, the backstage and the
   About dialog.
 - Text wraps around floating pictures and shapes; text boxes lay out their own text.
