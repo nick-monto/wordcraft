@@ -959,19 +959,6 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line(&[(6.5, 6.5), (10.0, 3.0), (13.5, 6.5)]);
             pen.line(&[(5.0, 9.0), (3.5, 9.0), (3.5, 17.0), (16.5, 17.0), (16.5, 9.0), (15.0, 9.0)]);
         }
-        "user" => {
-            pen.fcircle(10.0, 7.0, 3.5, a);
-            pen.p.add(Shape::convex_polygon(
-                (0..=16)
-                    .map(|i| {
-                        let t = std::f32::consts::PI * i as f32 / 16.0;
-                        pen.pt(10.0 - 6.5 * t.cos(), 18.0 - 6.0 * t.sin())
-                    })
-                    .collect(),
-                a,
-                Stroke::NONE,
-            ));
-        }
         "close" => {
             pen.line(&[(5.0, 5.0), (15.0, 15.0)]);
             pen.line(&[(15.0, 5.0), (5.0, 15.0)]);
