@@ -456,7 +456,7 @@ fn insert(app: &mut WordApp, ui: &mut Ui) {
         });
     });
     group(ui, "Symbols", None, app, |ui, app| {
-        big(ui, app, "equation", "Equation", "insert.equation", json!({}), false);
+        big(ui, app, "equation", "Equation", "ui.dialog", json!({"name": "equation"}), false);
         menu_button(ui, app, "symbol", Some("Symbol"), "Symbol", true, |ui, app| {
             egui::Grid::new("syms").show(ui, |ui| {
                 for (i, c) in [
@@ -912,7 +912,6 @@ fn view(app: &mut WordApp, ui: &mut Ui) {
 fn help(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Help", None, app, |ui, app| {
         big(ui, app, "help", "Help", "ui.dialog", json!({"name": "about"}), false);
-        big(ui, app, "discord", "Community\nDiscord", "ui.discord", json!({}), false);
     });
     group(ui, "Agents", None, app, |ui, app| {
         big(ui, app, "macros", "Commands", "ui.dialog", json!({"name": "commands"}), false);

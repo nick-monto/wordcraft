@@ -70,15 +70,47 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .params(r#"{"char": string}"#),
         CommandSpec::new("insert.equation", "Equation", "Insert › Symbols", |s, v| {
-            let lin = p::str(v, "linear").unwrap_or("a^2+b^2=c^2").to_string();
+            // Source: `latex`, else `linear`, else a starter equation. The length cap is a
+            // hostile-input guard: reject absurd sources before the parser or the layout sees them.
+            let src = p::str(v, "latex").or_else(|| p::str(v, "linear")).unwrap_or("a^2+b^2=c^2").to_string();
+            let n = src.chars().count();
+            if n > 8192 {
+                return Err(CmdError::Params(format!("equation source too long ({n} chars, max 8192)")));
+            }
+            // Reject sources the parser cannot read, so programmatic callers see the failure.
+            wordcraft_doc::math::parse(&src).map_err(|e| CmdError::Params(format!("not valid LaTeX: {e}")))?;
+            let display = p::bool(v, "display").unwrap_or(false);
             let props = s.typing_props();
             let at = delete_selection(s)?;
-            let end = s.doc.insert_object(&at, InlineObject::Equation { linear: lin, display: false }, &props)?;
+            let end = s.doc.insert_object(&at, InlineObject::Equation { linear: src, display }, &props)?;
             s.sel = Selection::caret(end);
             sel_result(s)
         })
         .key("Alt+=")
-        .params(r#"{"linear"?: string}"#),
+        .params(r#"{"latex"?: string, "linear"?: string, "display"?: bool}"#),
+        CommandSpec::new("equation.source", "Equation Source", "Insert › Symbols", |s, _| {
+            let (a, b) = s.sel.ordered();
+            let story = a.story;
+            let paths = if a == b { vec![a.path.clone()] } else { s.doc.paths_between(&a, &b) };
+            for path in paths {
+                let Some(p) = s.doc.para(story, &path) else { continue };
+                for off in p.object_offsets() {
+                    let inside = if a == b {
+                        off + wordcraft_doc::para::OBJ.len_utf8() == a.off || off == a.off
+                    } else {
+                        (path != a.path || off >= a.off) && (path != b.path || off < b.off)
+                    };
+                    if !inside {
+                        continue;
+                    }
+                    if let Some(InlineObject::Equation { linear, display }) = p.object_at(off) {
+                        return Ok(json!({"latex": linear, "display": display}));
+                    }
+                }
+            }
+            Err(CmdError::Failed("no equation at the caret".into()))
+        })
+        .pure(),
         CommandSpec::new("insert.field", "Field", "Insert › Text › Quick Parts", field).key("Mod+F9").params(r#"{"instr": string, "result"?: string}"#),
         CommandSpec::new("insert.dropCap", "Drop Cap", "Insert › Text", |s, v| {
             let lines = p::u64(v, "lines").unwrap_or(3).min(10) as u8;

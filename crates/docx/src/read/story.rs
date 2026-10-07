@@ -2,12 +2,14 @@
 
 use std::sync::Arc;
 
+use wordcraft_doc::math;
 use wordcraft_doc::para::{Anchor, Float, NoteKind, ShapeKind, Wrap};
 use wordcraft_doc::props::{CharProps, Rgb};
 use wordcraft_doc::table::{Cell, MAX_COLS, MAX_ROWS, Row, Table};
 use wordcraft_doc::{Block, Blocks, InlineObject, Paragraph, PartKind, RevisionKind, Run, para_block};
 
 use super::Reader;
+use super::omml;
 use super::props::{sectpr, tcpr, trpr};
 use crate::package::Rels;
 use crate::units::{int, measure};
@@ -310,12 +312,14 @@ impl Reader<'_> {
             "w:smartTag" | "w:customXml" | "w:dir" | "w:bdo" => self.read_inline_children(sc, pb, k, rels, ctx, depth + 1),
             "m:oMath" => {
                 let props = self.run_props_none(ctx);
-                self.emit_obj(sc, pb, InlineObject::Equation { linear: k.deep_text(), display: false }, &props);
+                let ast = omml::tree(k);
+                self.emit_obj(sc, pb, InlineObject::Equation { linear: math::to_latex(&ast), display: false }, &props);
             }
             "m:oMathPara" => {
                 let props = self.run_props_none(ctx);
                 for m in k.children("m:oMath") {
-                    self.emit_obj(sc, pb, InlineObject::Equation { linear: m.deep_text(), display: true }, &props);
+                    let ast = omml::tree(m);
+                    self.emit_obj(sc, pb, InlineObject::Equation { linear: math::to_latex(&ast), display: true }, &props);
                 }
             }
             "mc:AlternateContent" => {

@@ -1,7 +1,9 @@
 //! Round-trip tests: build documents programmatically → write → read → compare.
 
+use std::io::{Read, Write};
 use std::sync::Arc;
 
+use wordcraft_doc::math;
 use wordcraft_doc::numbering::ListKind;
 use wordcraft_doc::para::{Anchor, Float, NoteKind, ShapeKind, Wrap};
 use wordcraft_doc::props::{
@@ -32,6 +34,29 @@ fn doc_with(blocks: Vec<Paragraph>) -> Document {
     let mut d = Document::new();
     d.body = blocks.into_iter().map(para_block).collect();
     d
+}
+
+/// The raw `word/document.xml` produced for `doc`.
+fn doc_xml(doc: &Document) -> String {
+    let bytes = wordcraft_docx::write(doc).expect("write");
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("zip");
+    let mut f = z.by_name("word/document.xml").expect("document.xml");
+    let mut s = String::new();
+    f.read_to_string(&mut s).expect("read");
+    s
+}
+
+/// A minimal package with `body` as the document body (for hand-written OMML).
+fn pkg(body: &str) -> Vec<u8> {
+    const NS: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships""#;
+    const ROOT_RELS: &str = r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+    let doc = format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document {NS}><w:body>{body}</w:body></w:document>");
+    let mut zw = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, bytes) in [("_rels/.rels", ROOT_RELS.as_bytes()), ("word/document.xml", doc.as_bytes())] {
+        zw.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+        zw.write_all(bytes).unwrap();
+    }
+    zw.finish().unwrap().into_inner()
 }
 
 /// A paragraph built from (text, props) runs.
@@ -515,7 +540,8 @@ fn shapes_textboxes_equations_dropcaps_round_trip() {
         float: Float::default(),
         story: None,
     };
-    let eq = InlineObject::Equation { linear: "x=(-b±√(b^2-4ac))/2a".into(), display: false };
+    let eq_src = r"x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}";
+    let eq = InlineObject::Equation { linear: eq_src.into(), display: false };
     let mut p = Paragraph::with_text("shapes ", CharProps::default());
     for o in [tb, star.clone(), eq.clone()] {
         let end = p.len();
@@ -540,10 +566,62 @@ fn shapes_textboxes_equations_dropcaps_round_trip() {
         o => panic!("{o:?}"),
     }
     assert_eq!(got[0].objects[1], star);
-    assert_eq!(got[0].objects[2], eq);
+    match &got[0].objects[2] {
+        InlineObject::Equation { linear, display } => {
+            assert!(!*display);
+            // Reading back yields canonical LaTeX: the source normalises once, then is a fixed point.
+            assert_eq!(linear, &math::to_latex(&math::parse(eq_src).expect("parse")));
+            assert_eq!(linear, &math::to_latex(&math::parse(linear).expect("reparse")));
+        }
+        o => panic!("{o:?}"),
+    }
+    // The source became structured OMML, not a single flat text run.
+    let xml = doc_xml(&d);
+    for tag in ["<m:f>", "<m:num>", "<m:den>", "<m:rad>", "<m:sSup>"] {
+        assert!(xml.contains(tag), "missing {tag} in {xml}");
+    }
     assert_eq!(got.len(), 2, "drop cap paragraph merges back");
     assert_eq!(got[1].text, dc.text);
     assert_eq!(got[1].props, dc.props);
+}
+
+#[test]
+fn display_equation_omml_round_trip() {
+    let src = r"\frac{1}{2}+\sqrt[3]{x}+\sum_{i=1}^{n}i+\left(\frac{a}{b}\right)+\hat{x}+\begin{pmatrix}a&b\\c&d\end{pmatrix}";
+    let mut p = Paragraph::new();
+    p.insert_object(0, InlineObject::Equation { linear: src.into(), display: true }, &CharProps::default()).unwrap();
+    let d = doc_with(vec![p]);
+    let xml = doc_xml(&d);
+    for tag in ["<m:oMathPara>", "<m:oMath>", "<m:f>", "<m:rad>", "<m:nary>", "<m:d>", "<m:acc>", "<m:m>"] {
+        assert!(xml.contains(tag), "missing {tag} in {xml}");
+    }
+    let r = rt(&d);
+    let got = paras(&r);
+    assert_eq!(got[0].objects.len(), 1);
+    match &got[0].objects[0] {
+        InlineObject::Equation { linear, display } => {
+            assert!(*display, "display survives m:oMathPara");
+            assert_eq!(linear, &math::to_latex(&math::parse(src).expect("parse")));
+            assert_eq!(linear, &math::to_latex(&math::parse(linear).expect("reparse")));
+        }
+        o => panic!("{o:?}"),
+    }
+}
+
+#[test]
+fn unknown_and_deep_omml_stays_text_without_panic() {
+    // `m:func` is not bridged: its visible text must survive.
+    let func = "<w:p><m:oMath><m:func><m:fName><m:r><m:t>sin</m:t></m:r></m:fName><m:e><m:r><m:t>x</m:t></m:r></m:e></m:func></m:oMath></w:p>";
+    let d = wordcraft_docx::read(&pkg(func)).expect("read");
+    match paras(&d)[0].objects.first() {
+        Some(InlineObject::Equation { linear, .. }) => assert_eq!(linear.as_str(), "sinx"),
+        o => panic!("{o:?}"),
+    }
+    // 100 levels of junk nesting: past our 32-level cap, but inside the XML parser's limit.
+    let deep = format!("{}{}{}", "<m:e>".repeat(100), "<m:r><m:t>z</m:t></m:r>", "</m:e>".repeat(100));
+    let d = wordcraft_docx::read(&pkg(&format!("<w:p><m:oMath>{deep}</m:oMath></w:p>"))).expect("read");
+    assert!(paras(&d)[0].objects.iter().any(|o| matches!(o, InlineObject::Equation { .. })));
+    wordcraft_docx::write(&d).expect("write");
 }
 
 #[test]

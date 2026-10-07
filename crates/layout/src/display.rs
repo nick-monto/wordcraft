@@ -385,6 +385,59 @@ fn lines(
         for k in line.c0..line.c1 {
             let Some(c) = pl.clusters.get(k) else { continue };
             let ClKind::Object(oi) = c.kind else { continue };
+            // Typeset equations draw regardless of ascent (they may sit below the baseline).
+            if let Some(m) = pl.maths.iter().find(|m| m.cluster == k) {
+                let Some(st) = pl.styles.get(c.style as usize) else { continue };
+                let cx = x + line.xs.get(k - line.c0).copied().unwrap_or(0.0);
+                let color = text_color(&st.rc.color, None);
+                // Rules first so bars sit under the glyphs.
+                for r in &m.layout.rules {
+                    out.push(Draw::Line {
+                        x0: cx + r.x0,
+                        y0: base - r.y,
+                        x1: cx + r.x1,
+                        y1: base - r.y,
+                        width: r.thickness.max(0.3),
+                        color,
+                        stroke: Stroke::Solid,
+                        alpha,
+                    });
+                }
+                let text = para.and_then(|p| p.objects.get(oi)).map(|o| o.plain_text().to_string()).unwrap_or_default();
+                let mut order: Vec<(FaceRef, f32, bool, bool)> = Vec::new();
+                let mut groups: Vec<Vec<(u32, f32, f32)>> = Vec::new();
+                for g in &m.layout.glyphs {
+                    let idx = order.iter().position(|q| q.0.id() == g.face.id() && q.1 == g.size && q.2 == g.synth_bold && q.3 == g.synth_italic);
+                    let idx = match idx {
+                        Some(i) => i,
+                        None => {
+                            order.push((g.face, g.size, g.synth_bold, g.synth_italic));
+                            groups.push(Vec::new());
+                            order.len() - 1
+                        }
+                    };
+                    if let Some(gr) = groups.get_mut(idx) {
+                        gr.push((g.gid, cx + g.x, base - g.y));
+                    }
+                }
+                for (i, (face, size, synth_bold, synth_italic)) in order.into_iter().enumerate() {
+                    let glyphs = groups.get_mut(i).map(std::mem::take).unwrap_or_default();
+                    if glyphs.is_empty() {
+                        continue;
+                    }
+                    out.push(Draw::Glyphs {
+                        face,
+                        size,
+                        glyphs,
+                        color,
+                        alpha,
+                        synth_bold,
+                        synth_italic,
+                        text: if i == 0 { text.clone() } else { String::new() },
+                        link: st.rc.link.clone(),
+                    });
+                }
+            }
             if c.obj_h <= 0.0 {
                 continue;
             }

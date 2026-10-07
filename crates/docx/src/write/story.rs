@@ -6,6 +6,7 @@ use wordcraft_doc::section::{LineNumberRestart, SectionProps, SectionStart};
 use wordcraft_doc::table::Table;
 use wordcraft_doc::{Block, Blocks, InlineObject, Paragraph, RevisionKind};
 
+use super::omml;
 use super::props::{borders, ppr_inner, rpr, rpr_inner, tblpr, tcpr, trpr};
 use super::{PartRels, Writer};
 use crate::package::rt;
@@ -263,19 +264,7 @@ impl Writer<'_> {
                     w.close("w:r");
                 }
             }
-            InlineObject::Equation { linear, display } => {
-                if *display {
-                    w.open("m:oMathPara", &[]);
-                }
-                w.open("m:oMath", &[]);
-                w.open("m:r", &[]);
-                w.leaf("m:t", &[("xml:space", "preserve")], linear);
-                w.close("m:r");
-                w.close("m:oMath");
-                if *display {
-                    w.close("m:oMathPara");
-                }
-            }
+            InlineObject::Equation { linear, display } => omml::equation(w, linear, *display),
             InlineObject::Field { instr, result, locked } => self.field(w, instr, result, *locked, props),
             InlineObject::NoteRef { kind, id, custom } => {
                 let foot = *kind == NoteKind::Footnote;

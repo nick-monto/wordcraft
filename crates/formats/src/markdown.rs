@@ -1086,6 +1086,11 @@ fn inlines_md(inlines: &[Inline]) -> String {
                 let safe: String = a.chars().filter(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | ':')).collect();
                 pieces.push((String::new(), Fmt::default(), Some(format!("<a id=\"{safe}\"></a>"))));
             }
+            Inline::Math { latex, display } => {
+                let src = latex.replace('$', "\\$");
+                let md = if *display { format!("$$\n{src}\n$$") } else { format!("${src}$") };
+                pieces.push((String::new(), Fmt::default(), Some(md)));
+            }
         }
     }
     let mut out = String::new();

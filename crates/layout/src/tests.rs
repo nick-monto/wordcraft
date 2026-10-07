@@ -1,4 +1,5 @@
 use super::*;
+use crate::para::ClKind;
 use wordcraft_doc::para::InlineObject;
 use wordcraft_doc::props::{Align, ParaProps};
 use wordcraft_doc::{Pos, Table};
@@ -433,4 +434,69 @@ fn auto_hyphenation_breaks_long_words() {
     let d2 = Document::from_text(&soft);
     let l2 = lay(&d2);
     let _ = hyphens(&l2);
+}
+
+fn equation_doc(linear: &str) -> Document {
+    let mut p = wordcraft_doc::Paragraph::with_text("ab cd", Default::default());
+    p.insert_object(2, InlineObject::Equation { linear: linear.into(), display: false }, &Default::default()).unwrap();
+    let mut d = Document::from_text("x");
+    d.body = vec![wordcraft_doc::para_block(p)];
+    d
+}
+
+fn first_para(l: &DocLayout) -> std::sync::Arc<crate::para::ParaLayout> {
+    l.pages[0].items.iter().find_map(|i| if let Placed::Lines { para, .. } = i { Some(para.clone()) } else { None }).expect("no laid-out lines")
+}
+
+#[test]
+fn equation_typesets_into_paragraph() {
+    let d = equation_doc("\\frac{a}{b}");
+    let l = lay(&d);
+    let pl = first_para(&l);
+    let objs: Vec<usize> = pl.clusters.iter().filter_map(|c| if let ClKind::Object(k) = c.kind { Some(k) } else { None }).collect();
+    assert_eq!(objs, vec![0], "object indices {:?}", objs);
+    assert_eq!(pl.maths.len(), 1, "maths {:?}", pl.maths.len());
+    assert_eq!(pl.clusters.get(pl.maths[0].cluster).map(|c| c.kind), Some(ClKind::Object(0)), "maths sits on cluster {}", pl.maths[0].cluster);
+    let mb = &pl.maths[0].layout;
+    assert!(mb.glyphs.len() >= 2, "glyphs {}", mb.glyphs.len());
+    assert!(!mb.rules.is_empty(), "no rules");
+    let c = &pl.clusters[pl.maths[0].cluster];
+    assert!(c.obj_h > 0.0, "obj_h {}", c.obj_h);
+    assert!(c.obj_d > 0.0, "obj_d {}", c.obj_d);
+}
+
+#[test]
+fn bad_equation_source_falls_back_to_text() {
+    let d = equation_doc("\\nope");
+    let l = lay(&d);
+    let pl = first_para(&l);
+    assert!(pl.maths.is_empty(), "unexpected maths");
+    assert!(!pl.clusters.iter().any(|c| matches!(c.kind, ClKind::Object(_))), "unexpected object");
+    assert!(pl.clusters.iter().any(|c| c.kind == ClKind::Text), "no fallback text");
+}
+
+#[test]
+fn equation_display_draws_rules_and_shifted_glyphs() {
+    let d = equation_doc("\\frac{a}{b}");
+    let l = lay(&d);
+    let items = display::page_display(&d, &l.pages[0], &display::DisplayOptions::default());
+    assert!(items.iter().any(|i| matches!(i, display::Draw::Line { .. })), "no rule drawn");
+    let base = l.pages[0]
+        .items
+        .iter()
+        .find_map(|i| if let Placed::Lines { y, para, .. } = i { Some(y + para.lines[0].baseline) } else { None })
+        .expect("no lines");
+    let shifted = items.iter().any(|i| match i {
+        display::Draw::Glyphs { glyphs, .. } => glyphs.iter().any(|(_, _, y)| (y - base).abs() > 1.0),
+        _ => false,
+    });
+    assert!(shifted, "no glyph off the baseline");
+}
+
+#[test]
+fn hostile_equation_sources_do_not_panic() {
+    for src in ["\\frac{a}{b}".repeat(900), "{{{".to_string(), "\\sqrt{".repeat(4000)] {
+        let d = equation_doc(&src);
+        let _ = lay(&d);
+    }
 }

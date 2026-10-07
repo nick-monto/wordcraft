@@ -94,7 +94,7 @@ Every screenshot below is WordCraft itself, rendered offscreen by its own UI tes
   1.4 ms; pages render on demand.
 - **Everywhere.** One Rust codebase for macOS, Windows, Linux, BSD and the web. No Electron, no
   Tauri: native [egui](https://github.com/emilk/egui) on the GPU.
-- **Built for agents.** Every action is a command with an id. The same 389 commands drive the
+- **Built for agents.** Every action is a command with an id. The same 390 commands drive the
   ribbon, keyboard shortcuts, the command search, a command-line tool, a JSON control channel and
   an MCP server.
 - **Private.** Spelling, grammar and everything else work offline.
@@ -113,6 +113,7 @@ Every screenshot below is WordCraft itself, rendered offscreen by its own UI tes
 | **Tables** | Insert by grid, merge/split, styles with banded rows, borders, shading, header rows repeated across pages, rows that split across pages, sort, formulas, text ↔ table |
 | **Pages** | Margins, orientation, size, columns, page/column/section breaks, headers and footers (first page, odd/even), page numbers, watermark, page borders, line numbers, vertical alignment, drop caps, automatic hyphenation |
 | **Objects** | Pictures (resize, crop, recolour, brightness/contrast, transparency, background removal, picture styles, rotate), shapes, text boxes, floating position with text wrapping (square, top and bottom, behind or in front of text) |
+| **Equations** | LaTeX or Word's linear form: fractions, radicals, scripts, big operators with limits, stretchy delimiters, accents, matrices; typeset in 2D, saved as OMML that Word edits, `$…$` in Markdown and HTML export |
 | **References** | Table of contents, footnotes and endnotes, citations and bibliography (APA, MLA, Chicago, IEEE), captions, table of figures, cross-references, index, table of authorities |
 | **Review** | Spelling and grammar with suggestions, thesaurus, word count, comments in margin balloons or a pane, track changes, accept/reject, compare documents, restrict editing, accessibility checker, document inspector |
 | **Mailings** | Mail merge from CSV, merge fields, address block, greeting line, rules, preview, finish to a document; envelopes and labels |
@@ -180,7 +181,7 @@ check and the wasm build. Contributor and agent instructions: [AGENTS.md](AGENTS
 WordCraft covers 87% of Word's ribbon features with commands today; counting depth and
 fidelity, we estimate about 62% of real feature parity. An alpha for everyday writing is close:
 the remaining work is mostly testing against real-world .docx files, native printing and the
-first signed builds. Charts, SmartArt, the equation editor and the Draw tab come after.
+first signed builds. Charts, SmartArt, an interactive equation toolbar and the Draw tab come after.
 Details and estimates: [ROADMAP.md](ROADMAP.md).
 
 ## The Crafting Apps

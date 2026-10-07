@@ -2,9 +2,10 @@
 //! Word Count, Zoom, Watermark, New/Modify Style, Command search, About. Every dialog ends by
 //! running a command, so agents get the same result without the dialog.
 
-use egui::{Sense, Ui, vec2};
+use egui::{Rect, Sense, Ui, pos2, vec2};
 use serde::Serialize;
 use serde_json::{Value, json};
+use wordcraft_doc::para::InlineObject;
 
 use crate::WordApp;
 use crate::theme::{Tokens, semibold};
@@ -98,6 +99,11 @@ pub enum Dialog {
     Commands {
         query: String,
     },
+    Equation {
+        latex: String,
+        display: bool,
+        error: Option<String>,
+    },
     About,
 }
 
@@ -119,6 +125,7 @@ impl Dialog {
             Dialog::NewStyle { .. } => "newStyle",
             Dialog::ModifyStyle { .. } => "modifyStyle",
             Dialog::Commands { .. } => "commands",
+            Dialog::Equation { .. } => "equation",
             Dialog::About => "about",
         }
     }
@@ -192,6 +199,13 @@ impl Dialog {
             "watermark" => Dialog::Watermark { text: "CONFIDENTIAL".into(), diagonal: true },
             "newStyle" => Dialog::NewStyle { name: "Style1".into(), based_on: "Normal".into() },
             "commands" => Dialog::Commands { query: String::new() },
+            "equation" => {
+                // Seed from the equation under the caret when there is one.
+                let r = app.session.run("equation.source", &json!({})).unwrap_or_default();
+                let latex = r.get("latex").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| "\\frac{a}{b}".into());
+                let display = r.get("display").and_then(Value::as_bool).unwrap_or(false);
+                Dialog::Equation { latex, display, error: None }
+            }
             "about" => Dialog::About,
             _ => return None,
         })
@@ -281,6 +295,7 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
         Dialog::NewStyle { .. } => "Create New Style",
         Dialog::ModifyStyle { .. } => "Modify Style",
         Dialog::Commands { .. } => "Search Commands",
+        Dialog::Equation { .. } => "Equation",
         Dialog::About => "About WordCraft",
     };
     egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, vec2(0.0, -40.0)).open(&mut open).show(
@@ -295,6 +310,23 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
     } else {
         app.canvas.want_focus = true;
     }
+}
+
+/// If the caret sits on an equation object (or just after one), select it so a replace deletes it.
+fn select_equation_at_caret(app: &mut WordApp) -> bool {
+    let focus = app.session.sel.focus.clone();
+    let obj_len = wordcraft_doc::para::OBJ.len_utf8();
+    let Some(p) = app.session.doc.para(focus.story, &focus.path) else { return false };
+    let hit = p
+        .object_offsets()
+        .into_iter()
+        .find(|off| (*off == focus.off || *off + obj_len == focus.off) && matches!(p.object_at(*off), Some(InlineObject::Equation { .. })));
+    let Some(off) = hit else { return false };
+    app.session.sel = wordcraft_engine::Selection {
+        anchor: wordcraft_doc::Pos { off, ..focus.clone() },
+        focus: wordcraft_doc::Pos { off: off + obj_len, ..focus },
+    };
+    true
 }
 
 fn buttons(ui: &mut Ui, ok: &str) -> (bool, bool) {
@@ -695,6 +727,68 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
             }
             close || ui.input(|i| i.key_pressed(egui::Key::Escape))
         }
+        Dialog::Equation { latex, display, error } => {
+            // Parse live so the error line and the preview always match the field.
+            *error = wordcraft_doc::math::parse(latex.as_str()).err().map(|e| format!("not valid LaTeX: {e}"));
+            let ppp = ui.ctx().pixels_per_point();
+            let avail = ui.available_width().max(160.0);
+            let render_w = (avail - 8.0).max(120.0);
+            ui.label(egui::RichText::new("Preview").font(semibold(12.5)));
+            if error.is_some() {
+                ui.label("Fix the source to see a preview.");
+            } else if latex.len() > 2000 {
+                ui.label(egui::RichText::new("Source too long to preview.").weak());
+            } else {
+                // One cached texture keyed by source + display flag: re-rendered only when either changes.
+                let key = format!("eqpreview:{display}:{}", latex.as_str());
+                let cached = ui.ctx().data(|d| d.get_temp::<(String, egui::TextureHandle)>(egui::Id::new("eqpreview")));
+                let tex = match cached {
+                    Some((k, h)) if k == key => Some(h),
+                    _ => {
+                        let mut para = wordcraft_doc::Paragraph::new();
+                        if *display {
+                            para.props.align = Some(wordcraft_doc::Align::Center);
+                        }
+                        let obj = InlineObject::Equation { linear: latex.clone(), display: *display };
+                        if para.insert_object(0, obj, &wordcraft_doc::CharProps::default()).is_err() {
+                            None
+                        } else {
+                            crate::previews::snippet(&app.session.doc, para, render_w, 90.0, ppp, 4.0).map(|img| {
+                                let h = ui.ctx().load_texture(&key, img, egui::TextureOptions::LINEAR);
+                                ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("eqpreview"), (key.clone(), h.clone())));
+                                h
+                            })
+                        }
+                    }
+                };
+                match tex {
+                    Some(h) => {
+                        let sz = h.size_vec2() / ppp;
+                        let (rect, _) = ui.allocate_exact_size(sz, Sense::hover());
+                        ui.painter().image(h.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);
+                    }
+                    None => {
+                        ui.add_space(24.0);
+                    }
+                }
+            }
+            ui.add_space(4.0);
+            ui.label("LaTeX source:");
+            ui.add(egui::TextEdit::multiline(latex).desired_rows(3).desired_width(avail).hint_text("\\frac{a}{b}"));
+            ui.checkbox(display, "Display equation (own line)");
+            if let Some(e) = error.as_deref() {
+                ui.label(egui::RichText::new(e).color(egui::Color32::from_rgb(0xC0, 0x39, 0x2B)));
+            }
+            let on_eq = app.session.run("equation.source", &json!({})).is_ok();
+            let (ok, cancel) = buttons(ui, if on_eq { "Replace" } else { "Insert" });
+            let inserted = ok && error.is_none();
+            if inserted {
+                // When the caret is on an existing equation, select it first so the insert replaces it.
+                select_equation_at_caret(app);
+                let _ = app.run("insert.equation", json!({"latex": latex, "display": *display}));
+            }
+            inserted || cancel
+        }
         Dialog::About => {
             ui.label(egui::RichText::new("WordCraft").font(semibold(22.0)));
             ui.label(format!(
@@ -705,7 +799,6 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
             ui.label("A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.");
             ui.add_space(6.0);
             ui.hyperlink_to("getartcraft.com/apps/wordcraft", "https://getartcraft.com/apps/wordcraft");
-            ui.hyperlink_to("Join us on Discord: discord.gg/artcraft", "https://discord.gg/artcraft");
             ui.hyperlink_to("Source code: github.com/storytold/wordcraft", "https://github.com/storytold/wordcraft");
             ui.add_space(6.0);
             ui.label(egui::RichText::new("MIT OR Apache-2.0. Copyright (c) 2026 ArtCraft Team and the WordCraft contributors.").small().weak());

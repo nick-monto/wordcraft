@@ -8,6 +8,8 @@
 //! - [`hit`]: point ↔ position, caret geometry, line navigation, selection rectangles.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod math;
+
 pub mod display;
 pub mod fields;
 pub mod hit;
@@ -26,6 +28,7 @@ use wordcraft_doc::{Block, Blocks, Document, Paragraph, Path, StoryRef};
 use wordcraft_geom::Rect;
 
 pub use fields::FieldCtx;
+pub use math::{MathBox, MathGlyph, MathItem, MathRule, typeset, typeset_source};
 pub use para::{LineEnd, ParaLayout};
 
 /// How the document is viewed.

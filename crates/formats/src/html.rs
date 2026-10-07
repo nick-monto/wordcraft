@@ -1178,6 +1178,13 @@ pub fn inlines_html(inlines: &[Inline]) -> String {
                 ));
             }
             Inline::Anchor(a) => o.push_str(&format!("<a id=\"{}\"></a>", esc(a))),
+            Inline::Math { latex, display } => {
+                if *display {
+                    o.push_str(&format!("<div class=\"math\">\\[{}\\]</div>", esc(latex)));
+                } else {
+                    o.push_str(&format!("<span class=\"math\">\\({}\\)</span>", esc(latex)));
+                }
+            }
         }
     }
     o
@@ -1200,6 +1207,9 @@ fn para_attrs(p: &Para) -> String {
 }
 
 fn para_html(p: &Para) -> String {
+    if let [Inline::Math { latex, display: true }] = p.inlines.as_slice() {
+        return format!("<div class=\"math\">\\[{}\\]</div>", esc(latex));
+    }
     let body = inlines_html(&p.inlines);
     let attrs = para_attrs(p);
     match p.kind {

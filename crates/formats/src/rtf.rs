@@ -186,6 +186,7 @@ impl Writer {
                     let a = esc(a);
                     out.push_str(&format!("{{\\*\\bkmkstart {a}}}{{\\*\\bkmkend {a}}}"));
                 }
+                Inline::Math { latex, .. } => self.run(&model::math_plain(latex), &Fmt::default(), out),
             }
         }
     }

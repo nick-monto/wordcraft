@@ -246,6 +246,10 @@ impl Writer {
                     prev_space = false;
                 }
                 Inline::Anchor(a) => out.push_str(&format!("<text:bookmark text:name=\"{}\"/>", x(a))),
+                Inline::Math { latex, .. } => {
+                    out.push_str(&x(&model::math_plain(latex)));
+                    prev_space = false;
+                }
             }
         }
     }

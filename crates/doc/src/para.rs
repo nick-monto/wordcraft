@@ -285,14 +285,21 @@ impl Paragraph {
     pub fn is_empty(&self) -> bool {
         self.text.is_empty()
     }
-    /// The text with objects removed or replaced by their text (fields → result).
+    /// The text with objects removed or replaced by their text (fields → result, equations →
+    /// readable math, e.g. `√(b²-4ac)/2a` rather than their LaTeX source).
     pub fn plain_text(&self) -> String {
         let mut out = String::with_capacity(self.text.len());
         let mut k = 0;
         for c in self.text.chars() {
             if c == OBJ {
                 if let Some(o) = self.objects.get(k) {
-                    out.push_str(o.plain_text());
+                    match o {
+                        InlineObject::Equation { linear, .. } => match crate::math::parse(linear) {
+                            Ok(n) => out.push_str(&crate::math::to_plain(&n)),
+                            Err(_) => out.push_str(linear),
+                        },
+                        other => out.push_str(other.plain_text()),
+                    }
                 }
                 k += 1;
             } else {

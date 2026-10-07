@@ -1,5 +1,6 @@
 //! DOCX → [`Document`].
 
+mod omml;
 mod props;
 mod story;
 

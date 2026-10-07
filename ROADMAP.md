@@ -8,12 +8,12 @@ and agent control. This file tracks where we are honestly. Generated numbers com
 
 | Measure | Value |
 |---|---|
-| Commands (every action, scriptable by CLI/MCP/control channel) | **389** |
+| Commands (every action, scriptable by CLI/MCP/control channel) | **390** |
 | Feature catalog coverage (Word ribbon/menu features with a command) | **354 / 405 (87%)** |
 | **Estimated real feature parity** (depth and fidelity, not just a command) | **~62%** |
 | **Distance to alpha** | **~85% of the way; ≈20–25 h of Claude wall-clock work** |
 | **Distance to 100% parity** | **≈120–150 h of Claude Opus 5.5 wall-clock work** (with parallel agents) |
-| Tests | ~225 test functions (unit, round-trip, fuzz/proptest, MCP acceptance) |
+| Tests | ~250 test functions (unit, round-trip, fuzz/proptest, MCP acceptance) |
 | Layout speed (188-page document) | 61 ms cold, **1.4 ms** relayout after an edit |
 | Code | ~44k lines of Rust in 12 crates and 3 apps |
 
@@ -59,7 +59,8 @@ the icon art).
 | Review (spelling, grammar, thesaurus, comments, track changes, compare, protect) | Good; comment balloons in the margin; no track-changes balloons | 75% |
 | Mailings (mail merge, rules, preview, envelopes, labels) | Working | 70% |
 | Pictures & shapes (insert, size, crop, recolour, effects, styles, float position) | Text wraps around floats (rectangular); text boxes render their text; no tight/contour wrap, no rotation handles | 55% |
-| Draw tab (ink), SmartArt, charts, 3D models, equations editor | Not started / linear equations only | 5% |
+| Draw tab (ink), SmartArt, charts, 3D models | Not started | 0% |
+| Equations | LaTeX and Word linear input, 2D typesetting (fractions, radicals, scripts, big operators, delimiters, accents, matrices), structured OMML both ways; no interactive equation toolbar, no MathML or ink input | 45% |
 | File formats: DOCX read/write | Good (Word opens our files); charts/SmartArt/OLE dropped; untested on a real-world corpus | 75% |
 | File formats: PDF, ODT, RTF, HTML, Markdown, TXT | Working | 70% |
 | View modes (print, web, draft, read, focus, zoom, navigation pane) | Working | 70% |
@@ -76,7 +77,8 @@ the icon art).
    grouping, z-order polish, track-changes balloons and formatting revisions.
 3. **Draw tab / ink** (≈15 h).
 4. **Charts (own renderer) and SmartArt-style diagrams** (≈20 h).
-5. **Equation editor (OMML read/write, 2D layout)** (≈15 h).
+5. **Equation depth** (≈8 h): an interactive equation toolbar, equation numbering and fields,
+   MathML import, ink input. (LaTeX input, 2D layout and OMML read/write are done.)
 6. **Dialog depth**: every Word dialog with all its options (Font, Paragraph, Tabs, Borders and
    Shading, Page Setup, Styles, Columns, Index/TOC options, Mail Merge wizard, Options panes) (≈20 h).
 7. **Accessibility (screen readers), localisation, RTL and complex scripts** (≈15 h).
@@ -102,8 +104,14 @@ the icon art).
 | M12 | Formats breadth (PDF, ODT, RTF, HTML, MD, TXT) | **done** (first versions) |
 | M13 | Performance budgets | on track (1.4 ms relayout) |
 | M14 | 1.0 polish, packaging, signing | pipeline written; waiting on remote and secrets |
+| M15 | Equation typesetting (LaTeX) | **done** (no interactive equation toolbar yet) |
 
 ## Recently landed
+- LaTeX equations: a LaTeX/linear parser and a 2D typesetter (fractions, radicals, scripts, big
+  operators with limits, stretchy delimiters, accents, matrices), an equation dialog with a live
+  preview, structured OMML round-trip, and `$…$` in Markdown/HTML export. `docs/equations.md`.
+- The Discord community button is gone from the title bar, the Help tab, the backstage and the
+  About dialog.
 - Text wraps around floating pictures and shapes; text boxes lay out their own text.
 - Table rows split across pages between lines (Can't Split honoured, header rows repeat).
 - Drop caps; automatic hyphenation with Word's 0.25" hyphenation zone; soft hyphens.

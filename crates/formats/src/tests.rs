@@ -252,6 +252,43 @@ fn markdown_text_shapes() {
     assert!(md.contains("![tiny]("));
 }
 
+/// A paragraph whose only content is one equation.
+fn equation_para(linear: &str, display: bool) -> Paragraph {
+    let mut p = Paragraph::with_text("", CharProps::default());
+    let n = p.len();
+    p.insert_object(n, InlineObject::Equation { linear: linear.into(), display }, &CharProps::default()).unwrap();
+    p
+}
+
+/// A document whose only content is one equation.
+fn equation_doc(linear: &str, display: bool) -> Document {
+    let mut d = Document::new();
+    d.body = vec![para_block(equation_para(linear, display))];
+    d
+}
+
+#[test]
+fn equations_export_as_latex() {
+    let d = equation_doc("\\frac{a}{b}", false);
+    let md = String::from_utf8(export("md", &d).unwrap().unwrap()).unwrap();
+    assert!(md.contains(r"$\frac{a}{b}$"), "{md}");
+    let html = String::from_utf8(export("html", &d).unwrap().unwrap()).unwrap();
+    assert!(html.contains(r#"<span class="math">\(\frac{a}{b}\)</span>"#), "{html}");
+    let txt = String::from_utf8(export("txt", &d).unwrap().unwrap()).unwrap();
+    assert!(txt.contains("a/b"), "{txt}");
+    assert!(!txt.contains('\\'), "{txt}");
+
+    // A display equation is a fenced `$$` paragraph of its own.
+    let mut d = Document::new();
+    d.body = vec![
+        para_block(Paragraph::with_text("before", CharProps::default())),
+        para_block(equation_para("\\frac{a}{b}", true)),
+        para_block(Paragraph::with_text("after", CharProps::default())),
+    ];
+    let md = String::from_utf8(export("md", &d).unwrap().unwrap()).unwrap();
+    assert!(md.contains("before\n\n$$\n\\frac{a}{b}\n$$\n\nafter\n"), "{md}");
+}
+
 #[test]
 fn code_blocks_and_rules() {
     let d = import("md", b"```\nfn main() {}\n  indented\n```\n\n***\n\nafter").unwrap().unwrap();

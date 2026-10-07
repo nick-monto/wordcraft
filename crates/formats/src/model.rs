@@ -57,6 +57,11 @@ pub enum Inline {
     Image(Img),
     /// A bookmark (link target).
     Anchor(String),
+    /// An equation: its LaTeX (or Word-linear) source and whether it is displayed as a block.
+    Math {
+        latex: String,
+        display: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -106,12 +111,14 @@ impl Para {
         }
         self.inlines.push(Inline::Text(s.to_string(), f.clone()));
     }
-    /// The plain text (images and anchors left out).
+    /// The plain text (images and anchors left out; equations as readable text).
     pub fn text(&self) -> String {
         let mut s = String::new();
         for i in &self.inlines {
-            if let Inline::Text(t, _) = i {
-                s.push_str(t);
+            match i {
+                Inline::Text(t, _) => s.push_str(t),
+                Inline::Math { latex, .. } => s.push_str(&math_plain(latex)),
+                Inline::Image(_) | Inline::Anchor(_) => {}
             }
         }
         s
@@ -246,6 +253,15 @@ pub struct Flow {
 // ---------------------------------------------------------------------------------------------
 // Flow → Document
 
+/// Readable text of an equation source: the plain-text rendering when it parses, else the raw
+/// source (never LaTeX syntax).
+pub fn math_plain(latex: &str) -> String {
+    match wordcraft_doc::math::parse(latex) {
+        Ok(n) => wordcraft_doc::math::to_plain(&n),
+        Err(_) => latex.to_string(),
+    }
+}
+
 /// Text with characters the model reserves (U+FFFC) and stray controls removed.
 pub fn clean_text(s: &str) -> String {
     s.chars().filter(|c| *c != OBJ && (!c.is_control() || matches!(c, '\t' | '\n' | '\u{000C}' | '\u{000E}'))).collect()
@@ -340,6 +356,10 @@ impl Builder<'_> {
                     let _ = out.insert_object(end, InlineObject::BookmarkStart { name: name.clone() }, &CharProps::default());
                     let e2 = out.len();
                     let _ = out.insert_object(e2, InlineObject::BookmarkEnd { name: name.clone() }, &CharProps::default());
+                }
+                Inline::Math { latex, display } => {
+                    let obj = InlineObject::Equation { linear: latex.clone(), display: *display };
+                    let _ = out.insert_object(end, obj, &CharProps::default());
                 }
             }
         }
@@ -629,6 +649,12 @@ pub fn flow_para(doc: &Document, p: &Paragraph) -> Para {
                         out.push_text(&std::mem::take(&mut buf), &f);
                     }
                     out.inlines.push(Inline::Anchor(name.clone()));
+                }
+                Some(InlineObject::Equation { linear, display }) => {
+                    if !buf.is_empty() {
+                        out.push_text(&std::mem::take(&mut buf), &f);
+                    }
+                    out.inlines.push(Inline::Math { latex: linear.clone(), display: *display });
                 }
                 Some(o) => buf.push_str(o.plain_text()),
                 None => {}
